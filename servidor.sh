@@ -48,9 +48,9 @@ ARQUIVO_BACKUP="$BACKUP_DIR/backup_$DATA.tar.gz"
 # --exclude evita incluir o próprio diretório de backups (loop)
 # --exclude evita incluir a nuvem simulada (ela já recebe o backup)
 tar -czf "$ARQUIVO_BACKUP" \
-    "$BASE" \
     --exclude="$BASE/backups" \
     --exclude="$BASE/nuvem_simulada" \
+    "$BASE" \
     2>> "$LOG"
 
 TAMANHO=$(du -sh "$ARQUIVO_BACKUP" | cut -f1)
