@@ -1,235 +1,218 @@
-# LogixAI Agent
+<h1 align="center">LogixAI Agent</h1>
 
-**Agente inteligente de automação e gestão de infraestrutura**  
-Consultoria de TI para a Logix Brasil Ltda. — Disciplina: Sistemas Operacionais  
-SENAC São Paulo · Engenharia de Computação · Prof. Rafael S Novo Pereira
+<p align="center">
+  Agente de monitoramento de infraestrutura Windows/Linux com coleta automatizada, backup e análise de dados — desenvolvido para a Logix Brasil Ltda.
+</p>
 
----
-
-## Sobre o projeto
-
-O LogixAI Agent é uma solução de infraestrutura desenvolvida para modernizar o ambiente de TI da Logix Brasil Ltda., empresa brasileira com 180 colaboradores e ambiente híbrido Linux/Windows.
-
-A solução resolve seis problemas críticos identificados no diagnóstico:
-
-- Arquivos compartilhados sem estrutura departamental
-- Ausência de controle de permissões e grupos de acesso
-- Impossibilidade de auditoria rastreável
-- Estações Windows sem monitoramento automatizado
-- Backups inconsistentes e manuais
-- Exposição a riscos da LGPD (Lei 13.709/2018)
+<p align="center">
+  <img src="https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?style=flat-square&logo=powershell&logoColor=white" />
+  <img src="https://img.shields.io/badge/Bash-Ubuntu_24-4EAA25?style=flat-square&logo=gnubash&logoColor=white" />
+  <img src="https://img.shields.io/badge/Python-3.x-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/Nginx-009639?style=flat-square&logo=nginx&logoColor=white" />
+  <img src="https://img.shields.io/badge/Samba-file_share-red?style=flat-square" />
+  <img src="https://img.shields.io/badge/Databricks-análise_simulada-FF3621?style=flat-square&logo=databricks&logoColor=white" />
+  <img src="https://img.shields.io/badge/status-academic-lightgrey?style=flat-square" />
+</p>
 
 ---
 
-## Arquitetura
+## 📖 Sobre o projeto
 
-```
-Estações Windows (agente.ps1)
-        ↓  SCP / SSH porta 22
-Servidor Central Linux (/srv/logix/)
-        ↓  servidor.sh + cron
-Backup tar.gz + nuvem_simulada/  →  Azure Blob Storage (produção)
-        ↓
-analise_coletas.py  →  Databricks (analytics)
-```
+O **LogixAI Agent** é um sistema de monitoramento de infraestrutura corporativa que coleta métricas de estações Windows, envia os dados via SCP para um servidor central Linux, executa backup automatizado com retenção e analisa os dados em busca de alertas críticos (CPU, disco, erros de sistema, serviços parados).
+
+O projeto simula um ambiente de TI real com segmentação por departamentos, controle de acesso LGPD, firewall e compartilhamento Samba — rodando em **KillerCoda Ubuntu Playground** como servidor central.
+
+Projeto acadêmico desenvolvido em Engenharia da Computação.
 
 ---
 
-## Estrutura do repositório
+## 🏗️ Arquitetura
 
 ```
-System/
-├── 01_estrutura_permissoes.sh    # Cria diretórios, grupos Unix e permissões
-├── 02_firewall_samba_nginx.sh    # Configura UFW, Samba e Nginx
-├── servidor.sh                   # Organiza coletas e executa backup com timestamp
-├── agente.ps1                    # Agente de coleta PowerShell (estações Windows)
-└── README.md
-```
-
----
-
-## Scripts
-
-### `01_estrutura_permissoes.sh`
-Cria a estrutura departamental no servidor Linux e aplica permissões conforme a política de acesso da Logix Brasil.
-
-```bash
-sudo bash 01_estrutura_permissoes.sh
-```
-
-**O que faz:**
-- Cria `/srv/logix/{rh,financeiro,ti,operacoes}/{documentos,coletas,backups}`
-- Cria grupos Unix: `grp_rh`, `grp_financeiro`, `grp_ti`, `grp_auditoria`
-- Aplica `chmod 750` nos departamentos sensíveis (RH, Financeiro)
-- Aplica `chmod 755` no diretório de TI (auditoria sem escrita)
-- Idempotente: pode ser re-executado sem erros
-
----
-
-### `02_firewall_samba_nginx.sh`
-Configura os serviços de rede do servidor central.
-
-```bash
-sudo bash 02_firewall_samba_nginx.sh
-```
-
-**O que faz:**
-- UFW: libera portas 22 (SSH), 80 (Nginx), 139 e 445 (Samba)
-- Nginx: instala e sobe página de status em `/var/www/html/` — base do portal futuro
-- Samba: configura compartilhamentos por departamento com `valid users` por grupo
-- Valida `smb.conf` com `testparm -s` antes de reiniciar o serviço
-
----
-
-### `servidor.sh`
-Script central do servidor. Executado via `cron` diariamente.
-
-```bash
-sudo bash /srv/logix/servidor.sh
-```
-
-**O que faz:**
-1. Verifica coletas CSV recebidas em cada departamento
-2. Gera backup compactado com timestamp: `backup_YYYY-MM-DD_HH-MM.tar.gz`
-3. Copia backup para `/srv/logix/nuvem_simulada/` (representa Azure Blob em produção)
-4. Aplica retenção de 7 dias (`find -mtime +7 -delete`)
-5. Registra tudo em `/var/log/logixai/servidor.log`
-
-**Em produção, substituir a linha de cópia por:**
-```bash
-az storage blob upload --file backup.tar.gz --container logixai
+┌─────────────────────────────────┐
+│  Estações Windows (por depto.)  │
+│  agente.ps1 — Task Scheduler    │
+│  Coleta: CPU, RAM, Disco,       │
+│  Serviços, Erros, Hotfixes      │
+│  Envio: SCP com retry (3x)      │
+└────────────┬────────────────────┘
+             │ SCP → /srv/logix/{dept}/coletas/
+             ▼
+┌────────────────────────────────────────────────────┐
+│  Servidor Central (Ubuntu — KillerCoda)            │
+│                                                    │
+│  /srv/logix/                                       │
+│  ├── rh/          (750 — grp_rh, LGPD)            │
+│  ├── financeiro/  (750 — grp_financeiro)           │
+│  ├── ti/          (755 — grp_ti, auditoria)        │
+│  ├── operacoes/   (750 — grp_ti)                   │
+│  ├── backups/     (tar.gz com timestamp)           │
+│  └── nuvem_simulada/ (simula bucket de nuvem)      │
+│                                                    │
+│  servidor.sh — cron 02:00                          │
+│  ├── organiza CSVs por departamento                │
+│  ├── gera backup_YYYY-MM-DD.tar.gz                 │
+│  ├── "envia" para nuvem simulada                   │
+│  └── retenção: apaga backups > 7 dias              │
+│                                                    │
+│  Nginx   — portal web de status (porta 80)         │
+│  Samba   — compartilhamento por grupo (porta 445)  │
+│  UFW     — firewall: 22, 80, 139, 445              │
+└────────────────────────────────────────────────────┘
+             │
+             ▼
+┌────────────────────────────────┐
+│  Análise de Dados (Python)     │
+│  analise_coletas.py            │
+│  Simulação de pipeline         │
+│  Databricks / Azure Data Lake  │
+│  Alertas: CPU > 80%, disco     │
+│  < 10GB, erros > 10/24h        │
+└────────────────────────────────┘
 ```
 
 ---
 
-### `agente.ps1`
-Agente de coleta PowerShell para estações Windows 10/11.
+## ✨ Funcionalidades
 
-```powershell
-.\agente.ps1 -ServidorIP "IP_DO_SERVIDOR" -Departamento "financeiro"
-```
+**Agente Windows (`agente.ps1`)**
+- Coleta por hora via Task Scheduler: CPU, RAM, disco, IP, serviços parados, hotfixes, erros do Event Viewer (últimas 24h)
+- Exporta CSV com timestamp e envia via SCP para o servidor Linux
+- Retry automático com backoff progressivo (15s, 30s)
+- Log local de falhas em `%TEMP%\logixai_erros.log`
 
-**O que coleta:**
-| Métrica | Cmdlet |
+**Servidor central (Bash)**
+- Estrutura de diretórios segmentada por departamento com permissões LGPD
+- Grupos e usuários de serviço separados (`grp_rh`, `grp_financeiro`, `grp_ti`, `grp_auditoria`)
+- Backup diário com `tar.gz` + timestamp e retenção de 7 dias
+- Simulação de envio para nuvem (pronto para substituir `cp` por `az storage blob upload`)
+- Firewall UFW, Samba por grupo e Nginx com portal de status
+
+**Análise de dados (Python)**
+- Pipeline de análise sobre CSVs coletados (ou dados simulados em modo demo)
+- Métricas por departamento: CPU média/máxima, disco mínimo, erros acumulados
+- Detecção de alertas CRÍTICO / ATENÇÃO por estação
+- Relatório salvo em `/var/log/logixai/relatorio_databricks.txt`
+- Preparado para migração ao Databricks (`spark.read.csv`) e Azure Data Lake
+
+---
+
+## 🛠️ Stack
+
+| Camada | Tecnologia |
 |---|---|
-| CPU (%) | `Get-CimInstance Win32_Processor` |
-| RAM total e livre (GB) | `Win32_ComputerSystem` + `Win32_OperatingSystem` |
-| Disco livre C: (GB) | `Get-PSDrive C` |
-| IP local | `Get-NetIPAddress` |
-| Serviços automáticos parados | `Get-Service` |
-| Updates instalados | `Get-HotFix` |
-| Último login | `Get-LocalUser` |
-| Erros de sistema (24h) | `Get-WinEvent` |
-
-**Mecanismo de envio:**
-- Exporta para CSV via `Export-Csv`
-- Envia via SCP (OpenSSH nativo do Windows)
-- Retry automático: 3 tentativas com espera progressiva (15s, 30s)
-- Em caso de falha definitiva: arquivo mantido localmente + log de erro
-
-**Agendar execução (1x/hora via Task Scheduler):**
-```powershell
-$action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-File C:\logix\agente.ps1"
-$trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Hours 1) -Once -At (Get-Date)
-Register-ScheduledTask -TaskName "LogixAI-Agente" -Action $action -Trigger $trigger -RunLevel Highest
-```
+| Agente de coleta | PowerShell 5.1+, WMI/CIM, OpenSSH (SCP) |
+| Servidor central | Bash, Ubuntu 24, UFW, Samba, Nginx |
+| Análise de dados | Python 3, pandas |
+| Infraestrutura simulada | KillerCoda Ubuntu Playground |
+| Nuvem (produção futura) | Azure Data Lake, Databricks, `az` CLI |
 
 ---
 
-## Como executar no KillerCoda
+## 🚀 Como rodar (servidor — KillerCoda)
+
+### Passo a passo completo
 
 ```bash
-# 1. Instalar git (se necessário)
+# 1. Clonar o repositório
 apt-get install -y git
-
-# 2. Clonar o repositório
 git clone https://github.com/Julyxdias/System.git
-cd System
-git checkout Scripts
+cd System && git checkout Scripts
 
-# 3. Executar na ordem
+# 2. Estrutura de pastas e permissões
 sudo bash 01_estrutura_permissoes.sh
+
+# 3. Firewall, Samba e Nginx
 sudo bash 02_firewall_samba_nginx.sh
+
+# 4. Rodar o servidor de coleta/backup
 sudo cp servidor.sh /srv/logix/servidor.sh
 sudo bash /srv/logix/servidor.sh
 
-# 4. Verificar resultados
-ls -lh /srv/logix/backups/
-cat /var/log/logixai/servidor.log
+# 5. Análise de dados (cria e executa o script Python)
+# Veja o Passo 6 completo em Logix.sh
+
+# 6. Pegar o IP para configurar o agente.ps1
 ip addr show enp1s0 | grep 'inet '
+```
+
+### Agendar via cron (produção)
+
+```bash
+# Backup diário às 02:00
+echo "0 2 * * * bash /srv/logix/servidor.sh" | sudo crontab -
 ```
 
 ---
 
-## Decisões técnicas
+## 💻 Agente Windows
 
-| Decisão | Escolha | Motivo |
-|---|---|---|
-| Estrutura de pastas | Departamento + subpastas funcionais | Escalável e granular |
-| Permissões | Grupos Unix + chmod/chown | Simples, auditável, sem dependências |
-| Compartilhamento | Samba + SSH em paralelo | Samba para acesso interativo, SSH para automação |
-| Transporte | SCP via OpenSSH nativo | Zero instalação adicional no Windows |
-| Nuvem | Azure Blob Storage | Integração nativa com Azure Databricks e PowerShell |
-| Backup | tar + timestamp + retenção 7 dias | Nativo, auditável e suficiente para o volume |
-| Frequência de coleta | 1x/hora via Task Scheduler | Equilíbrio entre visibilidade e overhead |
-| LGPD | chmod 750 em /srv/logix/rh | Segregação de dados sensíveis |
-| Auditoria | grp_auditoria com chmod 755 | Leitura sem escrita |
-| Portal futuro | Nginx instalado como base | Expansão incremental sem retrabalho |
+```powershell
+# Executar manualmente
+.\agente.ps1 -ServidorIP "IP_DO_SERVIDOR" -Departamento "financeiro"
 
----
+# Departamentos válidos: rh | financeiro | ti | operacoes
+```
 
-## Tecnologias utilizadas
+Para agendar via Task Scheduler (1x/hora):
 
-**Servidor Linux**
-- Ubuntu (KillerCoda Ubuntu Playground)
-- Samba, OpenSSH, UFW, Nginx
-- Bash Script, cron, tar
-
-**Estações Windows**
-- PowerShell 5.1 / 7+
-- OpenSSH Client nativo (Windows 10/11)
-- Task Scheduler
-
-**Armazenamento e Analytics**
-- Azure Blob Storage (recomendado — simulado no POC)
-- Databricks Community Edition (análise de coletas)
-- Python 3 + pandas (analise_coletas.py)
+```
+Ação: PowerShell.exe -ExecutionPolicy Bypass -File "C:\LogixAI\agente.ps1" -ServidorIP "SEU_IP" -Departamento "ti"
+```
 
 ---
 
-## Conformidade com a LGPD
+## 📁 Estrutura do repositório
 
-| Controle | Implementação |
+```
+System/
+└── Scripts/
+    ├── 01_estrutura_permissoes.sh   # Cria diretórios, grupos e permissões
+    ├── 02_firewall_samba_nginx.sh   # Configura UFW, Samba e Nginx
+    ├── servidor.sh                  # Backup, retenção e envio à nuvem
+    ├── agente.ps1                   # Coleta de métricas Windows + SCP
+    └── Logix.sh                     # Guia passo a passo de execução completa
+```
+
+---
+
+## 🔐 Segurança e conformidade LGPD
+
+| Diretório | Permissão | Grupo | Observação |
+|---|---|---|---|
+| `/srv/logix/rh` | 750 | `grp_rh` | Dado sensível — acesso mínimo |
+| `/srv/logix/financeiro` | 750 | `grp_financeiro` | Acesso restrito |
+| `/srv/logix/ti` | 755 | `grp_ti` | Auditoria pode ler, sem escrita |
+| `/srv/logix/operacoes` | 750 | `grp_ti` | Operações gerenciadas pela TI |
+
+Samba configurado com `valid users` por grupo — sem acesso anônimo. Dado de `UltimoLogin` no agente é coletado mas segregado por departamento (conformidade LGPD).
+
+---
+
+## 📊 Alertas detectados pela análise
+
+| Nível | Condição |
 |---|---|
-| Segregação de dados de RH | `chmod 750` + `grp_rh` exclusivo |
-| Auditoria sem escrita | `chmod 755` + `grp_auditoria` |
-| Transporte criptografado | SSH/SCP — nenhum dado em texto puro |
-| Retenção controlada | Backups deletados após 7 dias |
-| Base legal | Art. 7°, IX — legítimo interesse para segurança da informação |
+| CRÍTICO | CPU média > 80% |
+| CRÍTICO | Disco livre < 10 GB |
+| ATENÇÃO | Serviços parados > 3 |
+| ATENÇÃO | Erros de sistema > 10/24h |
 
 ---
 
-## Ferramentas de IA utilizadas
+## 🔭 Evolução prevista (produção)
 
-Este projeto utilizou IA generativa como copiloto — não como substituto do raciocínio técnico.
-
-| Ferramenta | Uso |
-|---|---|
-| Claude (Anthropic) — Sonnet 4.6 | Copiloto principal: arquitetura, scripts, documentação, slides |
-| ChatGPT (OpenAI) — GPT-4o | Tomada de decisões arquiteturais |
-| Gemini (Google) — 1.5 Pro | Planejamento e organização das etapas |
-
-Todos os scripts foram executados e validados no KillerCoda. Erros identificados durante a execução foram corrigidos e documentados no Diário de Desenvolvimento.
+- Substituir `cp` por `az storage blob upload` → Azure Data Lake real
+- Migrar `analise_coletas.py` para notebook Databricks com `spark.read.csv`
+- Dashboard dinâmico com Flask/FastAPI servido pelo Nginx
+- Alertas via e-mail ou Teams webhook
 
 ---
 
-## Autoria
+## 👩‍💻 Autora
 
-**Julya Dias**  
-Engenharia de Computação — 7° semestre  
-SENAC São Paulo  
-[github.com/Julyxdias](https://github.com/Julyxdias)
+Desenvolvido por **[Julyxdias](https://github.com/Julyxdias)** — Engenharia da Computação.
 
 ---
 
-*Logix Brasil Ltda. é uma empresa fictícia criada para fins acadêmicos.*
+<p align="center"><sub>Projeto acadêmico • Logix Brasil Ltda. • 2025</sub></p>
